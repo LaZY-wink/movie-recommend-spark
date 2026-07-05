@@ -26,56 +26,40 @@
 
 ---
 
-## 🏗 系统架构
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 数据源层 │
-│ ┌──────────────┐ ┌──────────────┐ ┌──────────────────────────┐ │
-│ │ movies.csv │ │ ratings.csv │ │ kafka_click_logs.csv │ │
-│ │ (电影信息) │ │ (用户评分) │ │ (模拟实时点击流) │ │
-│ └──────┬───────┘ └──────┬───────┘ └───────────┬──────────────┘ │
-│ │ │ │ │
-│ ▼ ▼ ▼ │
-│ ┌──────────────┐ ┌──────────────┐ ┌──────────────────────────┐ │
-│ │ HDFS │ │ HDFS │ │ Kafka │ │
-│ │ (离线存储) │ │ (离线存储) │ │ (movie_logs Topic) │ │
-│ └──────┬───────┘ └──────┬───────┘ └───────────┬──────────────┘ │
-│ │ │ │ │
-│ └───────────┬───────┴────────────────────────┘ │
-│ ▼ │
-│ ┌─────────────────────────────────────────────────────────────────────┐ │
-│ │ Spark 计算引擎层 │ │
-│ │ ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐ │ │
-│ │ │ Spark SQL │ │ Structured │ │ Spark MLlib │ │ │
-│ │ │ (离线探索分析) │ │ Streaming │ │ (ALS推荐) │ │ │
-│ │ │ 8维度数据探索 │ │ (滑动窗口聚合) │ │ Top-3推荐生成 │ │ │
-│ │ └─────────────────┘ └─────────────────┘ └─────────────────┘ │ │
-│ └─────────────────────────────────────────────────────────────────────┘ │
-│ │ │ │
-│ ▼ ▼ │
-│ ┌─────────────────┐ ┌─────────────────────┐ │
-│ │ HBase │ │ MySQL │ │
-│ │ (推荐结果存储) │ │ (热门前10排行) │ │
-│ └─────────────────┘ └─────────────────────┘ │
-│ │ │ │
-│ └─────────────┬───────────┘ │
-│ ▼ │
-│ ┌─────────────────────────────────────────────────────────────────────┐ │
-│ │ SpringBoot 服务层 (RESTful API) │ │
-│ │ ┌─────────────────┐ ┌─────────────────────────────┐ │ │
-│ │ │ /api/hot/ │ │ /api/recommend/{userId} │ │ │
-│ │ │ ranking │ │ 查询用户Top-3推荐 │ │ │
-│ │ │ 热门排行查询 │ │ │ │ │
-│ │ └─────────────────┘ └─────────────────────────────┘ │ │
-│ └─────────────────────────────────────────────────────────────────────┘ │
-│ ▼ │
-│ ┌─────────────────────────────────────────────────────────────────────┐ │
-│ │ 展示层 (ECharts + HTML5) │ │
-│ │ ┌─────────────────┐ ┌─────────────────────────────┐ │ │
-│ │ │ 实时监控大屏 │ │ 个性化推荐页面 │ │ │
-│ │ │ (柱状图/5s刷新) │ │ (输入UserId → 展示Top-3) │ │ │
-│ │ └─────────────────┘ └─────────────────────────────┘ │ │
-│ └─────────────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────────┘
+## 系统架构
+
+```mermaid
+flowchart TD
+    subgraph 数据源层
+        A[movies.csv] --> HDFS
+        B[ratings.csv] --> HDFS
+        C[kafka_click_logs.csv] --> Kafka
+    end
+
+    subgraph 存储层
+        HDFS[(HDFS)]
+        Kafka[(Kafka Topic)]
+        HBase[(HBase)]
+        MySQL[(MySQL)]
+    end
+
+    subgraph 计算层
+        HDFS --> SparkSQL[Spark SQL<br/>离线探索]
+        Kafka --> Streaming[Structured Streaming<br/>滑动窗口聚合]
+        HDFS --> ALS[Spark MLlib ALS<br/>推荐模型训练]
+    end
+
+    subgraph 服务层
+        Streaming --> MySQL
+        ALS --> HBase
+        MySQL --> SpringBoot[SpringBoot REST API]
+        HBase --> SpringBoot
+    end
+
+    subgraph 展示层
+        SpringBoot --> ECharts[ECharts监控大屏]
+        SpringBoot --> Recommend[个性化推荐页面]
+    end
 
 ---
 
@@ -99,26 +83,32 @@
 ---
 
 ## 📁 项目结构
+
 movie-recommend-spark/
+│
 ├── src/main/
-│ ├── java/
-│ │ └── Controller/
-│ │ ├── MovieApplication.java # SpringBoot启动类
-│ │ └── HotMovieController.java # RESTful API（排行+推荐）
-│ ├── resources/
-│ │ ├── static/
-│ │ │ ├── index.html # ECharts监控大屏
-│ │ │ └── recommend.html # 推荐结果页面
-│ │ ├── application.yml # 配置文件
-│ │ ├── movies.csv # 电影信息(8部)
-│ │ ├── ratings.csv # 用户评分(14条)
-│ │ └── kafka_click_logs.csv # 模拟点击日志
-│ └── scala/com/
-│ ├── RealTimeHotMovie.scala # Structured Streaming流计算
-│ ├── MovieRecommender.scala # ALS模型训练+推荐生成
-│ └── KafkaClickLogProducer.scala # Kafka模拟数据生产
-├── pom.xml # Maven依赖
-└── README.md
+│   ├── java/
+│   │   └── Controller/
+│   │       ├── MovieApplication.java      # SpringBoot启动类
+│   │       └── HotMovieController.java    # RESTful API
+│   │
+│   ├── resources/
+│   │   ├── static/
+│   │   │   ├── index.html                # ECharts监控大屏
+│   │   │   └── recommend.html            # 推荐结果页面
+│   │   │
+│   │   ├── application.yml               # 配置文件
+│   │   ├── movies.csv                    # 电影信息(8部)
+│   │   ├── ratings.csv                   # 用户评分(14条)
+│   │   └── kafka_click_logs.csv          # 模拟点击日志
+│   │
+│   └── scala/com/
+│       ├── RealTimeHotMovie.scala        # Structured Streaming流计算
+│       ├── MovieRecommender.scala        # ALS模型训练+推荐生成
+│       └── KafkaClickLogProducer.scala   # Kafka模拟数据生产
+│
+├── pom.xml                               # Maven依赖
+└── README.md                             # 项目说明
 
 ---
 

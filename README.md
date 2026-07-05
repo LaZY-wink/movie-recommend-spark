@@ -28,25 +28,25 @@
 
 ## 系统架构
 
-```mermaid
+    mermaid
 flowchart TD
     subgraph 数据源层
-        A[movies.csv] --> HDFS
-        B[ratings.csv] --> HDFS
+        A[movies.csv] --> HDFS1
+        B[ratings.csv] --> HDFS1
         C[kafka_click_logs.csv] --> Kafka
     end
 
     subgraph 存储层
-        HDFS[(HDFS)]
+        HDFS1[(HDFS)]
         Kafka[(Kafka Topic)]
         HBase[(HBase)]
         MySQL[(MySQL)]
     end
 
     subgraph 计算层
-        HDFS --> SparkSQL[Spark SQL<br/>离线探索]
-        Kafka --> Streaming[Structured Streaming<br/>滑动窗口聚合]
-        HDFS --> ALS[Spark MLlib ALS<br/>推荐模型训练]
+        HDFS1 --> SparkSQL[Spark SQL 离线探索]
+        Kafka --> Streaming[Structured Streaming 窗口聚合]
+        HDFS1 --> ALS[Spark MLlib ALS推荐]
     end
 
     subgraph 服务层
@@ -57,7 +57,7 @@ flowchart TD
     end
 
     subgraph 展示层
-        SpringBoot --> ECharts[ECharts监控大屏]
+        SpringBoot --> ECharts[ECharts 监控大屏]
         SpringBoot --> Recommend[个性化推荐页面]
     end
 

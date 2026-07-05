@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>个性化电影推荐系统</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            font-family: Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            padding: 40px 50px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            width: 700px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        h1 {
+            color: #e94560;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 28px;
+            letter-spacing: 2px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+        .search-box {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .search-box input {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 30px;
+            font-size: 16px;
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+            outline: none;
+            transition: 0.3s;
+        }
+        .search-box input::placeholder { color: #aaa; }
+        .search-box input:focus { background: rgba(255,255,255,0.25); }
+        .search-box button {
+            padding: 12px 35px;
+            border: none;
+            border-radius: 30px;
+            background: #e94560;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .search-box button:hover { background: #c73652; transform: scale(1.05); }
+        .result-box {
+            background: rgba(255,255,255,0.08);
+            border-radius: 15px;
+            padding: 25px;
+            min-height: 150px;
+        }
+        .user-info {
+            color: #ffd700;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+        .rec-item {
+            color: #ddd;
+            font-size: 16px;
+            padding: 10px 15px;
+            margin: 5px 0;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            border-left: 3px solid #e94560;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .rec-item .rank {
+            color: #ffd700;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+        .rec-item .rating {
+            color: #ffd700;
+            font-weight: bold;
+        }
+        .empty {
+            color: #888;
+            text-align: center;
+            padding: 30px 0;
+        }
+        .error { color: #ff6b6b; text-align: center; padding: 20px 0; }
+        .loading { color: #aaa; text-align: center; padding: 20px 0; }
+        .examples {
+            color: #888;
+            font-size: 13px;
+            text-align: center;
+            margin-top: 15px;
+        }
+        .examples span {
+            color: #e94560;
+            cursor: pointer;
+            margin: 0 5px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: rgba(233, 69, 96, 0.2);
+        }
+        .examples span:hover { background: rgba(233, 69, 96, 0.4); }
+        .quick-users {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .quick-users button {
+            padding: 5px 15px;
+            border: 1px solid #555;
+            border-radius: 15px;
+            background: transparent;
+            color: #aaa;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .quick-users button:hover {
+            background: #e94560;
+            color: #fff;
+            border-color: #e94560;
+        }
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #888;
+            text-decoration: none;
+        }
+        .back-link:hover { color: #e94560; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🎬 智能电影推荐</h1>
+    <p class="subtitle">基于 ALS 协同过滤算法，为你精准推荐喜欢的电影</p>
+
+    <div class="search-box">
+        <input type="number" id="userIdInput" placeholder="输入用户ID (如: 1, 2, 3, 100)" min="1">
+        <button onclick="getRecommend()">🔍 获取推荐</button>
+    </div>
+
+    <div class="quick-users">
+        <span style="color:#888;font-size:13px;">快速测试：</span>
+        <button onclick="quickSearch(1)">用户 1</button>
+        <button onclick="quickSearch(2)">用户 2</button>
+        <button onclick="quickSearch(3)">用户 3</button>
+        <button onclick="quickSearch(4)">用户 4</button>
+        <button onclick="quickSearch(100)">用户 100</button>
+    </div>
+
+    <div class="result-box" id="resultBox">
+        <div class="empty">👆 输入用户ID，点击获取推荐</div>
+    </div>
+
+    <a href="/index.html" class="back-link">← 返回实时大屏</a>
+</div>
+
+<script>
+    function getRecommend() {
+        var userId = $('#userIdInput').val().trim();
+        if (!userId) {
+            alert('请输入用户ID');
+            return;
+        }
+        if (isNaN(userId) || parseInt(userId) < 1) {
+            alert('请输入有效的用户ID（正整数）');
+            return;
+        }
+        doSearch(userId);
+    }
+
+    function quickSearch(userId) {
+        $('#userIdInput').val(userId);
+        doSearch(userId);
+    }
+
+    function doSearch(userId) {
+        var resultBox = $('#resultBox');
+        resultBox.html('<div class="loading">⏳ 正在查询推荐...</div>');
+
+        $.ajax({
+            url: '/api/recommend/' + userId,
+            type: 'GET',
+            dataType: 'json',
+            timeout: 10000,
+            success: function(data) {
+                if (data && data.length > 0) {
+                    var html = '<div class="user-info">👤 用户 ' + userId + ' 的个性化推荐</div>';
+                    data.forEach(function(item, index) {
+                        var stars = '';
+                        var rating = parseFloat(item.rating) || 0;
+                        for (var i = 0; i < Math.round(rating); i++) {
+                            stars += '⭐';
+                        }
+                        html += '<div class="rec-item">' +
+                            '<span><span class="rank">#' + (index + 1) + '</span>' +
+                            '🎬 ' + (item.title || '电影' + item.movieId) + '</span>' +
+                            '<span class="rating">' + rating.toFixed(1) + ' ' + stars + '</span>' +
+                            '</div>';
+                    });
+                    resultBox.html(html);
+                } else {
+                    resultBox.html('<div class="error">😅 用户 ' + userId + ' 暂无推荐数据，请先运行推荐模型</div>');
+                }
+            },
+            error: function(xhr, status, error) {
+                if (status === 'timeout') {
+                    resultBox.html('<div class="error">⏰ 请求超时，请检查后端服务</div>');
+                } else if (xhr.status === 404) {
+                    resultBox.html('<div class="error">❌ 接口不存在，请检查后端 Controller</div>');
+                } else {
+                    resultBox.html('<div class="error">❌ 查询失败：' + error + '<br>请确保后端服务已启动</div>');
+                }
+                console.log('错误详情:', xhr.status, status, error);
+            }
+        });
+    }
+
+    // 回车键触发搜索
+    $('#userIdInput').keypress(function(e) {
+        if (e.which === 13) {
+            getRecommend();
+        }
+    });
+</script>
+</body>
+</html>

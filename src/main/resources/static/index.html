@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>实时热门影视监控大屏</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body { background: #1a1a2e; color: #fff; font-family: Arial, sans-serif; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        h1 { text-align: center; color: #e94560; }
+        .dashboard { display: flex; gap: 30px; flex-wrap: wrap; }
+        .chart-box { flex: 2; min-width: 600px; background: #16213e; padding: 20px; border-radius: 10px; }
+        .table-box { flex: 1; min-width: 300px; background: #16213e; padding: 20px; border-radius: 10px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: center; border-bottom: 1px solid #333; }
+        th { background: #e94560; color: #fff; }
+        td { color: #ddd; }
+        .rank-1 { color: #ffd700; font-weight: bold; }
+        .rank-2 { color: #c0c0c0; font-weight: bold; }
+        .rank-3 { color: #cd7f32; font-weight: bold; }
+        .update-time { text-align: center; color: #888; margin-top: 10px; }
+        .rank-col { width: 60px; }
+        .movie-col { flex: 1; }
+        .count-col { width: 80px; text-align: right; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🔥 实时热门影视监控大屏</h1>
+    <div class="update-time">最后更新：<span id="updateTime">--</span></div>
+    <div class="dashboard">
+        <div class="chart-box">
+            <div id="chart" style="width:100%;height:400px;"></div>
+        </div>
+        <div class="table-box">
+            <h3 style="text-align:center;color:#e94560;">🏆 点击排行榜</h3>
+            <table>
+                <thead><tr><th>排名</th><th>电影ID</th><th>点击量</th></tr></thead>
+                <tbody id="rankingBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    var chart = echarts.init(document.getElementById('chart'));
+
+    // ✅ 缓存当前数据，用于判断是否变化
+    var currentData = [];
+
+    function fetchData() {
+        $.ajax({
+            url: '/api/hot/ranking',
+            type: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                // ✅ 检查数据是否变化
+                var dataChanged = false;
+                if (data.length !== currentData.length) {
+                    dataChanged = true;
+                } else {
+                    for (var i = 0; i < data.length; i++) {
+                        if (data[i].movie_id !== currentData[i]?.movie_id ||
+                            data[i].click_count !== currentData[i]?.click_count) {
+                            dataChanged = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!dataChanged && currentData.length > 0) {
+                    // 数据没变化，只更新时间
+                    $('#updateTime').text(new Date().toLocaleString());
+                    return;
+                }
+
+                // 保存当前数据
+                currentData = JSON.parse(JSON.stringify(data));
+
+                // ✅ 提取数据（已经是按点击量排序的）
+                var movieNames = data.map(function(item) {
+                    return '电影' + item.movie_id;
+                });
+                var counts = data.map(function(item) {
+                    return item.click_count;
+                });
+
+                console.log('📊 更新数据:', movieNames, counts);
+
+                // 更新柱状图
+                chart.setOption({
+                    title: {
+                        text: '实时点击量排行',
+                        textStyle: { color: '#fff', fontSize: 16 }
+                    },
+                    tooltip: {
+                        trigger: 'axis',
+                        formatter: function(params) {
+                            var p = params[0];
+                            return p.name + '<br/>点击量: <strong>' + p.value + '</strong> 次';
+                        }
+                    },
+                    grid: {
+                        left: '10%',
+                        right: '5%',
+                        top: '15%',
+                        bottom: '15%'
+                    },
+                    xAxis: {
+                        data: movieNames,
+                        axisLabel: { color: '#aaa', fontSize: 12 },
+                        axisLine: { lineStyle: { color: '#333' } }
+                    },
+                    yAxis: {
+                        name: '点击次数',
+                        axisLabel: { color: '#aaa' },
+                        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } }
+                    },
+                    series: [{
+                        type: 'bar',
+                        data: counts.map(function(value, index) {
+                            var colors = ['#ffd700', '#c0c0c0', '#cd7f32', '#e94560', '#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24'];
+                            return {
+                                value: value,
+                                itemStyle: {
+                                    color: index < 3 ? colors[index] : '#e94560',
+                                    borderRadius: [4, 4, 0, 0]
+                                }
+                            };
+                        }),
+                        barWidth: '45%',
+                        label: {
+                            show: true,
+                            position: 'top',
+                            color: '#aaa',
+                            fontSize: 12,
+                            formatter: function(params) {
+                                return params.value;
+                            }
+                        },
+                        animationDuration: 500,
+                        animationEasing: 'elasticOut'
+                    }]
+                });
+
+                // 更新表格
+                var tbody = $('#rankingBody');
+                tbody.empty();
+                data.forEach(function(item, index) {
+                    var rankClass = index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : index === 2 ? 'rank-3' : '';
+                    var rankEmoji = index === 0 ? '🏆' : index === 1 ? '🥈' : index === 2 ? '🥉' : (index + 1);
+                    tbody.append(
+                        '<tr>' +
+                        '<td class="' + rankClass + '">' + rankEmoji + '</td>' +
+                        '<td>' + item.movie_id + '</td>' +
+                        '<td><strong>' + item.click_count + '</strong></td>' +
+                        '</tr>'
+                    );
+                });
+
+                // 更新时间
+                $('#updateTime').text(new Date().toLocaleString());
+            },
+            error: function(xhr, status, error) {
+                console.log('❌ 数据加载失败:', error);
+                $('#rankingBody').html('<tr><td colspan="3" style="color:#888;">连接中...</td></tr>');
+            }
+        });
+    }
+
+    // 启动时立即获取，然后每2秒轮询一次
+    fetchData();
+    setInterval(fetchData, 2000);
+
+    // 窗口自适应
+    window.addEventListener('resize', function() {
+        chart.resize();
+    });
+
+    console.log('🔥 实时监控大屏已启动！每2秒刷新一次');
+</script>
+</body>
+</html>
